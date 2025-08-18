@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Polygon, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import * as turf from '@turf/turf';
+import * as turf from 'turf';
 import { LatLngExpression } from 'leaflet';
 
 // Define a type for latitude/longitude tuples for better readability.
@@ -35,14 +35,19 @@ const ChangeView: React.FC<{ center: LatLngExpression | null; zoom: number }> = 
 
 /**
  * The main Map component that handles all the run tracking and territory capture logic.
+ * @returns {React.ReactElement} The Map component.
  */
 const Map: React.FC = () => {
+  // State to track if the user is currently recording a run.
   const [tracking, setTracking] = useState<boolean>(false);
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [path, setPath] = useState<LatLngTuple[]>([]);
+  // State to store the user's current geographical position.
   const [currentPosition, setCurrentPosition] = useState<LatLngTuple | null>(null);
+  // State to store the polygons of captured areas. Each area is an array of coordinates.
   const [capturedAreas, setCapturedAreas] = useState<LatLngTuple[][]>([]);
 
+  // A ref to hold the ID of the geolocation watcher, so it can be cleared later.
   const watchId = useRef<number | null>(null);
   const simulationIntervalId = useRef<number | null>(null);
 
