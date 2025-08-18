@@ -7,13 +7,21 @@ import { LatLngExpression } from 'leaflet';
 // Define a type for latitude/longitude tuples for better readability.
 type LatLngTuple = [number, number];
 
+// A predefined path for the simulated run. It forms a simple closed loop.
+const MOCK_RUN_PATH: LatLngTuple[] = [
+  [51.51, -0.10],
+  [51.515, -0.09],
+  [51.52, -0.08],
+  [51.515, -0.07],
+  [51.51, -0.06],
+  [51.505, -0.07],
+  [51.50, -0.08],
+  [51.495, -0.09],
+];
+
 /**
  * A utility component that automatically changes the map's view (center and zoom)
  * whenever the `center` or `zoom` props change.
- * @param {object} props - The component props.
- * @param {LatLngExpression | null} props.center - The new center for the map.
- * @param {number} props.zoom - The new zoom level for the map.
- * @returns {null} This component does not render anything.
  */
 const ChangeView: React.FC<{ center: LatLngExpression | null; zoom: number }> = ({ center, zoom }) => {
   const map = useMap();
@@ -27,28 +35,46 @@ const ChangeView: React.FC<{ center: LatLngExpression | null; zoom: number }> = 
 
 /**
  * The main Map component that handles all the run tracking and territory capture logic.
- * @returns {React.ReactElement} The Map component.
  */
 const Map: React.FC = () => {
-  // State to track if the user is currently recording a run.
   const [tracking, setTracking] = useState<boolean>(false);
-  // State to store the coordinates of the current run's path.
+  const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [path, setPath] = useState<LatLngTuple[]>([]);
-  // State to store the user's current geographical position.
   const [currentPosition, setCurrentPosition] = useState<LatLngTuple | null>(null);
-  // State to store the polygons of captured areas. Each area is an array of coordinates.
   const [capturedAreas, setCapturedAreas] = useState<LatLngTuple[][]>([]);
 
-  // A ref to hold the ID of the geolocation watcher, so it can be cleared later.
   const watchId = useRef<number | null>(null);
+  const simulationIntervalId = useRef<number | null>(null);
 
   /**
-   * Starts tracking the user's location.
-   * It clears any previous path and sets up a geolocation watcher.
+   * Checks if a given path forms a closed loop and, if so, adds it to the captured areas.
+   * @param {LatLngTuple[]} pathToCheck - The path to analyze.
+   */
+  const checkForTerritoryCapture = (pathToCheck: LatLngTuple[]) => {
+    if (pathToCheck.length > 2) {
+      const startPointCoords: [number, number] = [pathToCheck[0][1], pathToCheck[0][0]];
+      const endPointCoords: [number, number] = [pathToCheck[pathToCheck.length - 1][1], pathToCheck[pathToCheck.length - 1][0]];
+
+      const startPoint = turf.point(startPointCoords);
+      const endPoint = turf.point(endPointCoords);
+      const distance = turf.distance(startPoint, endPoint, { units: 'meters' });
+
+      // If start and end points are close enough, consider it a closed loop.
+      // Increased threshold to ensure mock path is captured.
+      if (distance < 150) {
+        const closedPath: LatLngTuple[] = [...pathToCheck, pathToCheck[0]];
+        setCapturedAreas(prevAreas => [...prevAreas, closedPath]);
+      }
+    }
+  };
+
+  /**
+   * Starts tracking the user's location via GPS.
    */
   const handleStartTracking = () => {
     setTracking(true);
-    setPath([]); // Clear previous path
+    setPath([]);
+    setCapturedAreas([]); // Clear previous captures
 
     if (!navigator.geolocation) {
       alert("Geolocation is not supported by your browser");
@@ -68,16 +94,12 @@ const Map: React.FC = () => {
         alert("Error getting location. Make sure you have enabled location services.");
         setTracking(false);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
   /**
-   * Stops tracking the user's location and checks if a territory was captured.
+   * Stops the GPS tracking and checks for territory capture.
    */
   const handleStopTracking = () => {
     setTracking(false);
@@ -85,50 +107,62 @@ const Map: React.FC = () => {
       navigator.geolocation.clearWatch(watchId.current);
       watchId.current = null;
     }
-
-    // Territory capture logic: check if the path forms a closed loop.
-    if (path.length > 2) {
-      // Turf.js expects coordinates in [longitude, latitude] format for its points.
-      const startPointCoords: [number, number] = [path[0][1], path[0][0]];
-      const endPointCoords: [number, number] = [path[path.length - 1][1], path[path.length - 1][0]];
-
-      const startPoint = turf.point(startPointCoords);
-      const endPoint = turf.point(endPointCoords);
-      const distance = turf.distance(startPoint, endPoint, { units: 'meters' });
-
-      // If the start and end points are within a 50-meter threshold, consider it a closed loop.
-      if (distance < 50) {
-        // Create a closed loop by adding the first point to the end of the path.
-        const closedPath: LatLngTuple[] = [...path, path[0]];
-
-        // Add the new captured area to the state.
-        // The react-leaflet Polygon component expects [latitude, longitude], which is our format.
-        setCapturedAreas(prevAreas => [...prevAreas, closedPath]);
-      }
-    }
+    checkForTerritoryCapture(path);
   };
 
-  // Default position for the map if the user's location is not yet available.
+  /**
+   * Starts a simulated run using the predefined MOCK_RUN_PATH.
+   */
+  const handleSimulateRun = () => {
+    if (simulationIntervalId.current) {
+      clearInterval(simulationIntervalId.current);
+    }
+
+    setIsSimulating(true);
+    setPath([]);
+    setCapturedAreas([]);
+    setCurrentPosition(MOCK_RUN_PATH[0]);
+
+    let step = 0;
+    simulationIntervalId.current = window.setInterval(() => {
+      if (step >= MOCK_RUN_PATH.length) {
+        if (simulationIntervalId.current) clearInterval(simulationIntervalId.current);
+        setIsSimulating(false);
+        checkForTerritoryCapture(MOCK_RUN_PATH);
+        return;
+      }
+
+      const point = MOCK_RUN_PATH[step];
+      setCurrentPosition(point);
+      setPath(prevPath => [...prevPath, point]);
+      step++;
+    }, 500); // 500ms delay between steps
+  };
+
   const initialPosition: LatLngTuple = [51.505, -0.09];
 
   return (
     <div>
       <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'white', padding: '10px', borderRadius: '5px', display: 'flex', gap: '10px' }}>
-        {!tracking ? (
+        {!tracking && !isSimulating && (
           <button onClick={handleStartTracking}>Start Run</button>
-        ) : (
+        )}
+        {tracking && (
           <button onClick={handleStopTracking}>Stop Run</button>
         )}
+        <button onClick={handleSimulateRun} disabled={tracking || isSimulating}>
+          Simulate Run
+        </button>
       </div>
       <MapContainer center={initialPosition} zoom={13} style={{ height: '100vh', width: '100%' }}>
-        {currentPosition && <ChangeView center={currentPosition} zoom={16} />}
+        {currentPosition && <ChangeView center={currentPosition} zoom={14} />}
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
         {currentPosition && (
           <Marker position={currentPosition}>
-            <Popup>You are here</Popup>
+            <Popup>Current Position</Popup>
           </Marker>
         )}
         <Polyline positions={path} color="blue" />
