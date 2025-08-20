@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Polygon, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import * as turf from 'turf';
+import {length} from '@turf/length';
 import { LatLngExpression } from 'leaflet';
 
 // Define a type for latitude/longitude tuples for better readability.
@@ -57,8 +58,8 @@ const Map: React.FC = () => {
   useEffect(() => {
     if (path.length > 1) {
       const line = turf.lineString(path.map(p => [p[1], p[0]]));
-      const length = turf.length(line, { units: 'kilometers' });
-      setDistance(length);
+      const lengthVal =  length(line, { units: 'kilometers' });
+      setDistance(lengthVal);
     } else {
       setDistance(0);
     }
@@ -75,7 +76,7 @@ const Map: React.FC = () => {
 
       const startPoint = turf.point(startPointCoords);
       const endPoint = turf.point(endPointCoords);
-      const distance = turf.distance(startPoint, endPoint, { units: 'meters' });
+      const distance = turf.distance(startPoint, endPoint, 'meters');
 
       // If start and end points are close enough, consider it a closed loop.
       // Increased threshold to ensure mock path is captured.
