@@ -46,10 +46,23 @@ const Map: React.FC = () => {
   const [currentPosition, setCurrentPosition] = useState<LatLngTuple | null>(null);
   // State to store the polygons of captured areas. Each area is an array of coordinates.
   const [capturedAreas, setCapturedAreas] = useState<LatLngTuple[][]>([]);
+  // State to track the total distance of the current run in kilometers.
+  const [distance, setDistance] = useState<number>(0);
 
   // A ref to hold the ID of the geolocation watcher, so it can be cleared later.
   const watchId = useRef<number | null>(null);
   const simulationIntervalId = useRef<number | null>(null);
+
+  // Effect to calculate the total distance of the run whenever the path updates.
+  useEffect(() => {
+    if (path.length > 1) {
+      const line = turf.lineString(path.map(p => [p[1], p[0]]));
+      const length = turf.length(line, { units: 'kilometers' });
+      setDistance(length);
+    } else {
+      setDistance(0);
+    }
+  }, [path]);
 
   /**
    * Checks if a given path forms a closed loop and, if so, adds it to the captured areas.
@@ -148,7 +161,10 @@ const Map: React.FC = () => {
 
   return (
     <div>
-      <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'white', padding: '10px', borderRadius: '5px', display: 'flex', gap: '10px' }}>
+      <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'white', padding: '10px', borderRadius: '5px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ padding: '5px', border: '1px solid #ccc', borderRadius: '5px' }}>
+          Distance: {distance.toFixed(2)} km
+        </div>
         {!tracking && !isSimulating && (
           <button onClick={handleStartTracking}>Start Run</button>
         )}
