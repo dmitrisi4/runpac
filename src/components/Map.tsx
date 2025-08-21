@@ -85,6 +85,8 @@ const Map: React.FC = () => {
 	const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
 	// State to control the visibility of the run history modal.
 	const [showHistory, setShowHistory] = useState<boolean>(false);
+	// State to control the visibility of the Telegram share modal.
+	const [showTelegramShare, setShowTelegramShare] = useState<boolean>(false);
 	// State to track geolocation permission status
 	const [geolocationStatus, setGeolocationStatus] = useState<'unknown' | 'granted' | 'denied' | 'prompt'>('unknown');
 
@@ -212,6 +214,61 @@ const Map: React.FC = () => {
 	 */
 	const toggleHistory = () => {
 		setShowHistory(!showHistory);
+	};
+
+	/**
+	 * Generates a summary message of all runs for sharing.
+	 */
+	const generateRunSummary = () => {
+		if (savedRuns.length === 0) {
+			return '🏃‍♂️ RunPac - Мой трекер пробежек\n\nПока нет сохраненных пробежек.';
+		}
+
+		const totalDistance = savedRuns.reduce((sum, run) => sum + run.distance, 0);
+		const totalDuration = savedRuns.reduce((sum, run) => sum + run.duration, 0);
+		const totalAreas = savedRuns.reduce((sum, run) => sum + run.capturedAreas.length, 0);
+		const avgDistance = totalDistance / savedRuns.length;
+
+		return `🏃‍♂️ RunPac - Мои результаты\n\n` +
+			`📊 Общая статистика:\n` +
+			`• Всего пробежек: ${savedRuns.length}\n` +
+			`• Общая дистанция: ${totalDistance.toFixed(2)} км\n` +
+			`• Общее время: ${formatDuration(totalDuration)}\n` +
+			`• Средняя дистанция: ${avgDistance.toFixed(2)} км\n` +
+			`• Захвачено территорий: ${totalAreas}\n\n` +
+			`🎯 Присоединяйся к RunPac и начни свои пробежки!`;
+	};
+
+	/**
+	 * Generates a detailed history message for sharing.
+	 */
+	const generateDetailedRunHistory = () => {
+		if (savedRuns.length === 0) {
+			return '🏃‍♂️ RunPac - История пробежек\n\nПока нет сохраненных пробежек.';
+		}
+
+		let message = `🏃‍♂️ RunPac - История пробежек\n\n`;
+		
+		// Ограничиваем до 10 последних пробежек для избежания слишком длинного URL
+		const runsToShow = savedRuns.slice(-10).reverse();
+		runsToShow.forEach((run, index) => {
+			const date = new Date(run.date);
+			message += `${index + 1}. ${date.toLocaleDateString('ru-RU')} - ${run.distance.toFixed(2)}км, ${formatDuration(run.duration)}`;
+			if (run.pauseCount > 0) {
+				message += `, пауз: ${run.pauseCount}`;
+			}
+			if (run.capturedAreas.length > 0) {
+				message += `, территорий: ${run.capturedAreas.length}`;
+			}
+			message += `\n`;
+		});
+
+		if (savedRuns.length > 10) {
+			message += `\n... и еще ${savedRuns.length - 10} пробежек\n`;
+		}
+
+		message += `\n🎯 Присоединяйся к RunPac!`;
+		return message;
 	};
 
 	/**
@@ -894,7 +951,24 @@ const Map: React.FC = () => {
 					}}>
 						<div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
 							<h2>История пробежек</h2>
-							<button onClick={toggleHistory} style={{fontSize: '18px', cursor: 'pointer'}}>✕</button>
+							<div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
+								<button 
+									onClick={() => setShowTelegramShare(true)}
+									style={{
+										padding: '8px 16px',
+										backgroundColor: '#0088cc',
+										color: 'white',
+										border: 'none',
+										borderRadius: '5px',
+										cursor: 'pointer',
+										fontSize: '14px',
+										fontWeight: 'bold'
+									}}
+								>
+									📤 Export
+								</button>
+								<button onClick={toggleHistory} style={{fontSize: '18px', cursor: 'pointer'}}>✕</button>
+							</div>
 						</div>
 
 						{savedRuns.length === 0 ? (
@@ -925,6 +999,114 @@ const Map: React.FC = () => {
 								))}
 							</div>
 						)}
+					</div>
+				</div>
+			)}
+
+			{/* Telegram Share Modal */}
+			{showTelegramShare && (
+				<div style={{
+					position: 'fixed',
+					top: 0,
+					left: 0,
+					width: '100%',
+					height: '100%',
+					backgroundColor: 'rgba(0, 0, 0, 0.7)',
+					display: 'flex',
+					justifyContent: 'center',
+					alignItems: 'center',
+					zIndex: 3000
+				}}>
+					<div style={{
+						backgroundColor: 'white',
+						padding: '30px',
+						borderRadius: '15px',
+						maxWidth: '400px',
+						width: '90%',
+						color: 'black',
+						textAlign: 'center'
+					}}>
+						<div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+							<h3 style={{margin: 0}}>Поделиться в Telegram</h3>
+							<button 
+								onClick={() => setShowTelegramShare(false)} 
+								style={{fontSize: '18px', cursor: 'pointer', background: 'none', border: 'none'}}
+							>
+								✕
+							</button>
+						</div>
+
+						<div style={{marginBottom: '20px'}}>
+							<p style={{marginBottom: '15px', color: '#666'}}>Выберите, что хотите экспортировать:</p>
+							
+							<button 
+								onClick={() => {
+									const message = generateRunSummary();
+									const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(message)}`;
+									window.open(telegramUrl, '_blank');
+								}}
+								style={{
+									width: '100%',
+									padding: '12px',
+									marginBottom: '10px',
+									backgroundColor: '#0088cc',
+									color: 'white',
+									border: 'none',
+									borderRadius: '8px',
+									cursor: 'pointer',
+									fontSize: '16px',
+									fontWeight: 'bold'
+								}}
+							>
+								📊 Сводка всех пробежек
+							</button>
+
+							<button 
+								onClick={() => {
+									const message = generateDetailedRunHistory();
+									const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(message)}`;
+									window.open(telegramUrl, '_blank');
+								}}
+								style={{
+									width: '100%',
+									padding: '12px',
+									marginBottom: '10px',
+									backgroundColor: '#229ED9',
+									color: 'white',
+									border: 'none',
+									borderRadius: '8px',
+									cursor: 'pointer',
+									fontSize: '16px',
+									fontWeight: 'bold'
+								}}
+							>
+								📋 Детальная история
+							</button>
+
+							<button 
+								onClick={() => {
+									const dataString = JSON.stringify(savedRuns, null, 2);
+									navigator.clipboard.writeText(dataString).then(() => {
+										alert('Данные пробежек скопированы в буфер обмена!');
+									}).catch(() => {
+										alert('Ошибка при копировании данных');
+									});
+								}}
+								style={{
+									width: '100%',
+									padding: '12px',
+									backgroundColor: '#6b7280',
+									color: 'white',
+									border: 'none',
+									borderRadius: '8px',
+									cursor: 'pointer',
+									fontSize: '16px',
+									fontWeight: 'bold'
+								}}
+							>
+								📄 Копировать JSON
+							</button>
+						</div>
 					</div>
 				</div>
 			)}
