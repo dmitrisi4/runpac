@@ -8,6 +8,7 @@ import HistoryIcon from "./icons/HistoryIcon";
 import LocationIcon from "./icons/LocationIcon";
 import RunIcon from "./icons/RunIcon";
 import RunTestIcon from "./icons/RunTestIcon";
+import LocationArrowIcon from "./icons/LocationArrowIcon";
 
 // Define a type for latitude/longitude tuples for better readability.
 type LatLngTuple = [number, number];
@@ -70,6 +71,8 @@ const Map: React.FC = () => {
 	const [path, setPath] = useState<LatLngTuple[]>([]);
 	// State to store the user's current geographical position.
 	const [currentPosition, setCurrentPosition] = useState<LatLngTuple | null>(null);
+	// State to store the current heading/direction in degrees (0 = North)
+	const [currentHeading, setCurrentHeading] = useState<number>(0);
 	// State to store the polygons of captured areas. Each area is an array of coordinates.
 	const [capturedAreas, setCapturedAreas] = useState<LatLngTuple[][]>([]);
 	// State to track the total distance of the current run in kilometers.
@@ -112,10 +115,54 @@ const Map: React.FC = () => {
 		};
 	}, [trackingState, startTime, totalPauseTime]);
 
+	// Custom location marker with rotating arrow using ReactDOM
+	const LocationMarker: React.FC<{ position: LatLngTuple; heading: number }> = ({position, heading}) => {
+		const markerRef = useRef<any>(null);
+
+		useEffect(() => {
+			if (markerRef.current) {
+				const markerElement = markerRef.current.getElement();
+				if (markerElement) {
+					const iconElement = markerElement.querySelector('.custom-location-icon');
+					if (iconElement) {
+						iconElement.style.transform = `rotate(${heading}deg)`;
+					}
+				}
+			}
+		}, [heading]);
+
+		return (
+			<Marker
+				ref={markerRef}
+				position={position}
+				icon={new (window as any).L.DivIcon({
+					html: `
+						<div class="custom-location-icon" style="
+							width: 32px; 
+							height: 32px; 
+							transform: rotate(${heading}deg);
+							transition: transform 0.3s ease-out;
+							display: flex;
+							align-items: center;
+							justify-content: center;
+						">
+							<svg height="64px" width="64px" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" xml:space="preserve" fill="#000000" transform="rotate(270)"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <circle style="fill:#FFD15D;" cx="256" cy="256" r="256"></circle> <path style="fill:#F9B54C;" d="M511.986,257.072L384.338,129.424L205.174,334.465l-76.35,49.299l128.224,128.224 C397.591,511.422,511.409,397.614,511.986,257.072z"></path> <path style="fill:#31BAFD;" d="M153.715,118.088h204.571c19.677,0,35.628,15.951,35.628,35.626v204.571 c0,19.677-15.951,35.628-35.626,35.628H153.717c-19.677,0-35.628-15.951-35.628-35.626V153.715 C118.088,134.039,134.039,118.088,153.715,118.088z"></path> <path style="fill:#2B9ED8;" d="M118.089,255.426v102.86c0,19.677,15.951,35.626,35.628,35.626h204.571 c19.677,0,35.628-15.951,35.626-35.628v-102.86H118.089V255.426z"></path> <polygon style="fill:#324A5E;" points="223.794,362.467 195.756,334.429 274.189,256 195.758,177.571 223.796,149.533 330.264,256 "></polygon> <polygon style="fill:#2B3B4E;" points="273.615,255.426 274.189,256 195.756,334.429 223.794,362.467 330.264,256 329.688,255.426 "></polygon> </g></svg>
+						</div>
+					`,
+					className: 'custom-location-marker',
+					iconSize: [32, 32],
+					iconAnchor: [16, 16]
+				})}
+			>
+				<Popup>Текущее местоположение</Popup>
+			</Marker>
+		);
+	};
+
 	// Component for polyline with auto-opening popup
-	const PolylineWithAutoPopup: React.FC<{ run: SavedRun }> = ({ run }) => {
+	const PolylineWithAutoPopup: React.FC<{ run: SavedRun }> = ({run}) => {
 		const polylineRef = useRef<any>(null);
-		
+
 		useEffect(() => {
 			if (polylineRef.current) {
 				// Small delay to ensure polyline is rendered
@@ -127,13 +174,13 @@ const Map: React.FC = () => {
 				}, 200);
 			}
 		}, []);
-		
+
 		return (
-			<Polyline 
+			<Polyline
 				ref={polylineRef}
-				positions={run.path} 
-				color="red" 
-				weight={4} 
+				positions={run.path}
+				color="red"
+				weight={4}
 				opacity={0.8}
 			>
 				<Popup>
@@ -141,12 +188,16 @@ const Map: React.FC = () => {
 						<h3 style={{margin: '0 0 10px 0', fontSize: '16px', fontWeight: 'bold'}}>Информация о пробежке</h3>
 						<p style={{margin: '5px 0'}}><strong>Дата:</strong> {new Date(run.date).toLocaleDateString('ru-RU')}</p>
 						<p style={{margin: '5px 0'}}><strong>Расстояние:</strong> {run.distance.toFixed(2)} км</p>
-						<p style={{margin: '5px 0'}}><strong>Активное время:</strong> {Math.floor(run.duration / 60)}:{(run.duration % 60).toString().padStart(2, '0')}</p>
-						<p style={{margin: '5px 0'}}><strong>Общее время:</strong> {Math.floor(run.totalTime / 60)}:{(run.totalTime % 60).toString().padStart(2, '0')}</p>
+						<p style={{margin: '5px 0'}}><strong>Активное
+							время:</strong> {Math.floor(run.duration / 60)}:{(run.duration % 60).toString().padStart(2, '0')}</p>
+						<p style={{margin: '5px 0'}}><strong>Общее
+							время:</strong> {Math.floor(run.totalTime / 60)}:{(run.totalTime % 60).toString().padStart(2, '0')}</p>
 						{run.pauseCount > 0 && (
 							<>
 								<p style={{margin: '5px 0'}}><strong>Количество пауз:</strong> {run.pauseCount}</p>
-								<p style={{margin: '5px 0'}}><strong>Время пауз:</strong> {Math.floor(run.pauseDuration / 60)}:{(run.pauseDuration % 60).toString().padStart(2, '0')}</p>
+								<p style={{margin: '5px 0'}}><strong>Время
+									пауз:</strong> {Math.floor(run.pauseDuration / 60)}:{(run.pauseDuration % 60).toString().padStart(2, '0')}
+								</p>
 							</>
 						)}
 						<p style={{margin: '5px 0'}}><strong>Захваченных территорий:</strong> {run.capturedAreas.length}</p>
@@ -295,7 +346,7 @@ const Map: React.FC = () => {
 		}
 
 		let message = `🏃‍♂️ RunPac - История пробежек\n\n`;
-		
+
 		// Ограничиваем до 10 последних пробежек для избежания слишком длинного URL
 		const runsToShow = savedRuns.slice(-10).reverse();
 		runsToShow.forEach((run, index) => {
@@ -366,6 +417,24 @@ const Map: React.FC = () => {
 
 		console.log('Geolocation supported, requesting position...');
 
+		// Immediately get current position to center the map
+		navigator.geolocation.getCurrentPosition(
+			(position: GeolocationPosition) => {
+				const {latitude, longitude} = position.coords;
+				const initialPosition: LatLngTuple = [latitude, longitude];
+				setCurrentPosition(initialPosition);
+				console.log(`Initial position set: lat=${latitude}, lng=${longitude}`);
+			},
+			(error: GeolocationPositionError) => {
+				console.warn('Could not get initial position:', error.message);
+			},
+			{
+				enableHighAccuracy: true,
+				timeout: 10000,
+				maximumAge: 60000
+			}
+		);
+
 		watchId.current = navigator.geolocation.watchPosition(
 			(position: GeolocationPosition) => {
 				const {latitude, longitude, accuracy} = position.coords;
@@ -407,6 +476,19 @@ const Map: React.FC = () => {
 
 				// Point passed all filters, add it to the path
 				console.log(`GPS point accepted: lat=${latitude}, lng=${longitude}`);
+
+				// Calculate heading if we have a previous position
+				if (lastGPSPoint.current) {
+					const bearing = turf.bearing(
+						turf.point([lastGPSPoint.current.lng, lastGPSPoint.current.lat]),
+						turf.point([longitude, latitude])
+					);
+					// Convert bearing to 0-360 degrees (turf.bearing returns -180 to 180)
+					const heading = bearing < 0 ? bearing + 360 : bearing;
+					setCurrentHeading(heading);
+					console.log(`Heading updated: ${heading.toFixed(1)}°`);
+				}
+
 				lastGPSPoint.current = newGPSPoint;
 				const newPosition: LatLngTuple = [latitude, longitude];
 				setCurrentPosition(newPosition);
@@ -774,25 +856,64 @@ const Map: React.FC = () => {
 						<LocationIcon style={{width: '30px', height: '30px'}}/>
 						{/*{getGeolocationStatusInfo().text}*/}
 					</div>
-          				<button onClick={toggleHistory} style={{
-					backgroundColor: 'transparent',
-					color: 'white',
-					border: 'none',
-					padding: '0',
-					borderRadius: '4px',
-					cursor: 'pointer',
-					display: 'flex',
-				}}>
-					<HistoryIcon style={{width: '30px', height: '30px'}}/>
-				</button>
+					<button onClick={toggleHistory} style={{
+						backgroundColor: 'transparent',
+						color: 'white',
+						border: 'none',
+						padding: '0',
+						borderRadius: '4px',
+						cursor: 'pointer',
+						display: 'flex',
+					}}>
+						<HistoryIcon style={{width: '30px', height: '30px'}}/>
+					</button>
 				</div>
 			</div>
 
+			{/*TIMER BLOCK*/}
+			{trackingState !== TrackingState.STOPPED &&
+		  <div style={{
+						position: 'absolute',
+						top: '100px',
+						left: '50%',
+						transform: 'translateX(-50%)',
+						zIndex: 1000,
+						background: '#FAF9F6',
+						padding: '6px 10px',
+						display: 'grid',
+						borderRadius: '15px',
+						gap: '0',
+						alignItems: 'center',
+						overflow: 'hidden',
+					}}>
+						{/* Timer Display */}
+			  <div style={{
+								padding: '5px',
+								// border: '1px solid #2563eb',
+								borderRadius: '5px',
+								color: '#333333',
+								fontWeight: 'bold'
+							}}>
+				  Tiempo: {formatDuration(Math.floor(currentRunTime / 1000))}
+			  </div>
 
+						{/* Distance Display */}
+			  <div style={{
+								padding: '5px',
+								// border: '1px solid #ccc',
+				        borderTop: '1px solid #333333',
+								// borderRadius: '5px',
+								color: '#333333'
+							}}>
+				  Distancia: {distance.toFixed(2)} km
+			  </div>
+		  </div>
+			}
+			{/**/}
 
 			<div style={{
 				position: 'absolute',
-				bottom: '20%',
+				bottom: '5%',
 				left: '50%',
 				transform: 'translateX(-50%)',
 				display: 'grid',
@@ -803,27 +924,6 @@ const Map: React.FC = () => {
 				gap: '10px',
 				alignItems: 'center'
 			}}>
-
-				{/* Timer Display */}
-				{trackingState !== TrackingState.STOPPED && (
-					<div style={{
-						padding: '5px',
-						border: '1px solid #2563eb',
-						borderRadius: '5px',
-						color: 'black',
-						backgroundColor: '#eff6ff',
-						fontWeight: 'bold'
-					}}>
-						Tiempo: {formatDuration(Math.floor(currentRunTime / 1000))}
-					</div>
-				)}
-
-				{/* Distance Display */}
-				{trackingState !== TrackingState.STOPPED && (
-					<div style={{padding: '5px', border: '1px solid #ccc', borderRadius: '5px', color: 'black'}}>
-						Distancia: {distance.toFixed(2)} km
-					</div>
-				)}
 
 				{/* Pause Information */}
 				{(trackingState === TrackingState.PAUSED || (trackingState === TrackingState.STOPPED && pauseCount > 0)) && (
@@ -863,7 +963,7 @@ const Map: React.FC = () => {
 							// padding: '8px 16px',
 							// borderRadius: '4px',
 							borderRadius: '50%',
-              padding: '3px',
+							padding: '3px',
 							cursor: 'pointer',
 						}}>
 							<RunIcon style={{width: '40px', height: '40px'}}/>
@@ -936,7 +1036,7 @@ const Map: React.FC = () => {
 							        // padding: '5px 10px',
 							        // borderRadius: '4px',
 							        borderRadius: '50%',
-                      padding: '3px',
+							        padding: '3px',
 							        cursor: (trackingState !== TrackingState.STOPPED || isSimulating) ? 'not-allowed' : 'pointer'
 						        }}>
 							{/*Simulate Run*/}
@@ -953,9 +1053,7 @@ const Map: React.FC = () => {
 					attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 				/>
 				{currentPosition && (
-					<Marker position={currentPosition}>
-						<Popup>Current Position</Popup>
-					</Marker>
+					<LocationMarker position={currentPosition} heading={currentHeading}/>
 				)}
 				<Polyline positions={path} color="blue"/>
 				{capturedAreas.map((area, index) => (
@@ -964,7 +1062,7 @@ const Map: React.FC = () => {
 				{/* Display selected run path and captured areas */}
 				{selectedRun && (
 					<>
-						<PolylineWithAutoPopup key={selectedRun.id} run={selectedRun} />
+						<PolylineWithAutoPopup key={selectedRun.id} run={selectedRun}/>
 						{selectedRun.capturedAreas.map((area, index) => (
 							<Polygon key={`selected-${index}`} positions={area} color="orange" fillOpacity={0.3}/>
 						))}
@@ -1006,7 +1104,7 @@ const Map: React.FC = () => {
 							</div>
 							<div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
 								{selectedRun && (
-									<button 
+									<button
 										onClick={() => setSelectedRun(null)}
 										style={{
 											padding: '8px 16px',
@@ -1022,7 +1120,7 @@ const Map: React.FC = () => {
 										🗑️ Очистить
 									</button>
 								)}
-								<button 
+								<button
 									onClick={() => setShowTelegramShare(true)}
 									style={{
 										padding: '8px 16px',
@@ -1046,32 +1144,32 @@ const Map: React.FC = () => {
 						) : (
 							<div>
 								{savedRuns.map((run) => (
-								<div 
-									key={run.id} 
-									onClick={() => {
-										setSelectedRun(run);
-										setShowHistory(false);
-									}}
-									style={{
-										border: selectedRun?.id === run.id ? '2px solid #0088cc' : '1px solid #ddd',
-										borderRadius: '5px',
-										padding: '15px',
-										marginBottom: '10px',
-										backgroundColor: selectedRun?.id === run.id ? '#e6f3ff' : '#f9f9f9',
-										cursor: 'pointer',
-										transition: 'all 0.2s ease'
-									}}
-									onMouseEnter={(e) => {
-										if (selectedRun?.id !== run.id) {
-											e.currentTarget.style.backgroundColor = '#f0f0f0';
-										}
-									}}
-									onMouseLeave={(e) => {
-										if (selectedRun?.id !== run.id) {
-											e.currentTarget.style.backgroundColor = '#f9f9f9';
-										}
-									}}
-								>
+									<div
+										key={run.id}
+										onClick={() => {
+											setSelectedRun(run);
+											setShowHistory(false);
+										}}
+										style={{
+											border: selectedRun?.id === run.id ? '2px solid #0088cc' : '1px solid #ddd',
+											borderRadius: '5px',
+											padding: '15px',
+											marginBottom: '10px',
+											backgroundColor: selectedRun?.id === run.id ? '#e6f3ff' : '#f9f9f9',
+											cursor: 'pointer',
+											transition: 'all 0.2s ease'
+										}}
+										onMouseEnter={(e) => {
+											if (selectedRun?.id !== run.id) {
+												e.currentTarget.style.backgroundColor = '#f0f0f0';
+											}
+										}}
+										onMouseLeave={(e) => {
+											if (selectedRun?.id !== run.id) {
+												e.currentTarget.style.backgroundColor = '#f9f9f9';
+											}
+										}}
+									>
 										<div style={{fontWeight: 'bold', marginBottom: '5px'}}>
 											{new Date(run.date).toLocaleDateString('ru-RU')} в {new Date(run.date).toLocaleTimeString('ru-RU')}
 										</div>
@@ -1117,8 +1215,8 @@ const Map: React.FC = () => {
 					}}>
 						<div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
 							<h3 style={{margin: 0}}>Поделиться в Telegram</h3>
-							<button 
-								onClick={() => setShowTelegramShare(false)} 
+							<button
+								onClick={() => setShowTelegramShare(false)}
 								style={{fontSize: '18px', cursor: 'pointer', background: 'none', border: 'none'}}
 							>
 								✕
@@ -1127,8 +1225,8 @@ const Map: React.FC = () => {
 
 						<div style={{marginBottom: '20px'}}>
 							<p style={{marginBottom: '15px', color: '#666'}}>Выберите, что хотите экспортировать:</p>
-							
-							<button 
+
+							<button
 								onClick={() => {
 									const message = generateRunSummary();
 									const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(message)}`;
@@ -1150,7 +1248,7 @@ const Map: React.FC = () => {
 								📊 Сводка всех пробежек
 							</button>
 
-							<button 
+							<button
 								onClick={() => {
 									const message = generateDetailedRunHistory();
 									const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(message)}`;
@@ -1172,7 +1270,7 @@ const Map: React.FC = () => {
 								📋 Детальная история
 							</button>
 
-							<button 
+							<button
 								onClick={() => {
 									const dataString = JSON.stringify(savedRuns, null, 2);
 									navigator.clipboard.writeText(dataString).then(() => {
