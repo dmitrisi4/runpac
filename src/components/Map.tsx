@@ -89,6 +89,9 @@ const Map: React.FC = () => {
 	const [showTelegramShare, setShowTelegramShare] = useState<boolean>(false);
 	// State to track geolocation permission status
 	const [geolocationStatus, setGeolocationStatus] = useState<'unknown' | 'granted' | 'denied' | 'prompt'>('unknown');
+	// State to store the selected run for viewing on the map
+	const [selectedRun, setSelectedRun] = useState<SavedRun | null>(null);
+
 
 	// Real-time timer effect
 	useEffect(() => {
@@ -108,6 +111,50 @@ const Map: React.FC = () => {
 			}
 		};
 	}, [trackingState, startTime, totalPauseTime]);
+
+	// Component for polyline with auto-opening popup
+	const PolylineWithAutoPopup: React.FC<{ run: SavedRun }> = ({ run }) => {
+		const polylineRef = useRef<any>(null);
+		
+		useEffect(() => {
+			if (polylineRef.current) {
+				// Small delay to ensure polyline is rendered
+				setTimeout(() => {
+					if (polylineRef.current) {
+						// Simulate click to open popup
+						polylineRef.current.fire('click');
+					}
+				}, 200);
+			}
+		}, []);
+		
+		return (
+			<Polyline 
+				ref={polylineRef}
+				positions={run.path} 
+				color="red" 
+				weight={4} 
+				opacity={0.8}
+			>
+				<Popup>
+					<div style={{minWidth: '200px'}}>
+						<h3 style={{margin: '0 0 10px 0', fontSize: '16px', fontWeight: 'bold'}}>Информация о пробежке</h3>
+						<p style={{margin: '5px 0'}}><strong>Дата:</strong> {new Date(run.date).toLocaleDateString('ru-RU')}</p>
+						<p style={{margin: '5px 0'}}><strong>Расстояние:</strong> {run.distance.toFixed(2)} км</p>
+						<p style={{margin: '5px 0'}}><strong>Активное время:</strong> {Math.floor(run.duration / 60)}:{(run.duration % 60).toString().padStart(2, '0')}</p>
+						<p style={{margin: '5px 0'}}><strong>Общее время:</strong> {Math.floor(run.totalTime / 60)}:{(run.totalTime % 60).toString().padStart(2, '0')}</p>
+						{run.pauseCount > 0 && (
+							<>
+								<p style={{margin: '5px 0'}}><strong>Количество пауз:</strong> {run.pauseCount}</p>
+								<p style={{margin: '5px 0'}}><strong>Время пауз:</strong> {Math.floor(run.pauseDuration / 60)}:{(run.pauseDuration % 60).toString().padStart(2, '0')}</p>
+							</>
+						)}
+						<p style={{margin: '5px 0'}}><strong>Захваченных территорий:</strong> {run.capturedAreas.length}</p>
+					</div>
+				</Popup>
+			</Polyline>
+		);
+	};
 
 	// Computed state for backward compatibility
 	const tracking = trackingState === TrackingState.RUNNING;
@@ -727,23 +774,7 @@ const Map: React.FC = () => {
 						<LocationIcon style={{width: '30px', height: '30px'}}/>
 						{/*{getGeolocationStatusInfo().text}*/}
 					</div>
-				</div>
-			</div>
-
-			<div style={{
-				position: 'absolute',
-				top: '10px',
-				right: '10px',
-				zIndex: 1000,
-				background: 'white',
-				borderRadius: '15px',
-				gap: '20px',
-				padding: '5px 15px',
-				alignItems: 'center',
-				display: 'flex',
-
-			}}>
-				<button onClick={toggleHistory} style={{
+          				<button onClick={toggleHistory} style={{
 					backgroundColor: 'transparent',
 					color: 'white',
 					border: 'none',
@@ -754,7 +785,9 @@ const Map: React.FC = () => {
 				}}>
 					<HistoryIcon style={{width: '30px', height: '30px'}}/>
 				</button>
+				</div>
 			</div>
+
 
 
 			<div style={{
@@ -924,6 +957,15 @@ const Map: React.FC = () => {
 				{capturedAreas.map((area, index) => (
 					<Polygon key={index} positions={area} color="purple"/>
 				))}
+				{/* Display selected run path and captured areas */}
+				{selectedRun && (
+					<>
+						<PolylineWithAutoPopup key={selectedRun.id} run={selectedRun} />
+						{selectedRun.capturedAreas.map((area, index) => (
+							<Polygon key={`selected-${index}`} positions={area} color="orange" fillOpacity={0.3}/>
+						))}
+					</>
+				)}
 			</MapContainer>
 
 			{/* Run History Modal */}
@@ -949,9 +991,33 @@ const Map: React.FC = () => {
 						overflow: 'auto',
 						color: 'black'
 					}}>
-						<div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
-							<h2>История пробежек</h2>
+						<div style={{marginBottom: '20px'}}>
+							<div>
+								<h2>История пробежек</h2>
+								{selectedRun && (
+									<p style={{margin: '5px 0 0 0', fontSize: '14px', color: '#666'}}>
+										📍 Показан маршрут от {new Date(selectedRun.date).toLocaleDateString('ru-RU')}
+									</p>
+								)}
+							</div>
 							<div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
+								{selectedRun && (
+									<button 
+										onClick={() => setSelectedRun(null)}
+										style={{
+											padding: '8px 16px',
+											backgroundColor: '#dc3545',
+											color: 'white',
+											border: 'none',
+											borderRadius: '5px',
+											cursor: 'pointer',
+											fontSize: '14px',
+											fontWeight: 'bold'
+										}}
+									>
+										🗑️ Очистить
+									</button>
+								)}
 								<button 
 									onClick={() => setShowTelegramShare(true)}
 									style={{
@@ -967,7 +1033,7 @@ const Map: React.FC = () => {
 								>
 									📤 Export
 								</button>
-								<button onClick={toggleHistory} style={{fontSize: '18px', cursor: 'pointer'}}>✕</button>
+								<button onClick={toggleHistory} style={{fontSize: '14px', cursor: 'pointer'}}>✕</button>
 							</div>
 						</div>
 
@@ -976,13 +1042,32 @@ const Map: React.FC = () => {
 						) : (
 							<div>
 								{savedRuns.map((run) => (
-									<div key={run.id} style={{
-										border: '1px solid #ddd',
+								<div 
+									key={run.id} 
+									onClick={() => {
+										setSelectedRun(run);
+										setShowHistory(false);
+									}}
+									style={{
+										border: selectedRun?.id === run.id ? '2px solid #0088cc' : '1px solid #ddd',
 										borderRadius: '5px',
 										padding: '15px',
 										marginBottom: '10px',
-										backgroundColor: '#f9f9f9'
-									}}>
+										backgroundColor: selectedRun?.id === run.id ? '#e6f3ff' : '#f9f9f9',
+										cursor: 'pointer',
+										transition: 'all 0.2s ease'
+									}}
+									onMouseEnter={(e) => {
+										if (selectedRun?.id !== run.id) {
+											e.currentTarget.style.backgroundColor = '#f0f0f0';
+										}
+									}}
+									onMouseLeave={(e) => {
+										if (selectedRun?.id !== run.id) {
+											e.currentTarget.style.backgroundColor = '#f9f9f9';
+										}
+									}}
+								>
 										<div style={{fontWeight: 'bold', marginBottom: '5px'}}>
 											{new Date(run.date).toLocaleDateString('ru-RU')} в {new Date(run.date).toLocaleTimeString('ru-RU')}
 										</div>
