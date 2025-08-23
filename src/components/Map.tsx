@@ -858,14 +858,16 @@ const Map: React.FC = () => {
 							gap: '5px',
 							backgroundColor: '#48ceac',
 							color: '#F9FAFB',
-							padding: '5px 10px',
+							// padding: '5px 10px',
 							border: 'none',
 							// padding: '8px 16px',
-							borderRadius: '4px',
+							// borderRadius: '4px',
+							borderRadius: '50%',
+              padding: '3px',
 							cursor: 'pointer',
 						}}>
 							<RunIcon style={{width: '40px', height: '40px'}}/>
-							<span style={{fontSize: '13px', fontWeight: 700}}>Iniciar</span>
+							{/*<span style={{fontSize: '13px', fontWeight: 700}}>Iniciar</span>*/}
 						</button>
 					)}
 
@@ -931,13 +933,15 @@ const Map: React.FC = () => {
 							        color: '#F9FAFB',
 							        border: 'none',
 							        // padding: '8px 16px',
-							        padding: '5px 10px',
-							        borderRadius: '4px',
+							        // padding: '5px 10px',
+							        // borderRadius: '4px',
+							        borderRadius: '50%',
+                      padding: '3px',
 							        cursor: (trackingState !== TrackingState.STOPPED || isSimulating) ? 'not-allowed' : 'pointer'
 						        }}>
 							{/*Simulate Run*/}
 							<RunTestIcon style={{width: '40px', height: '40px'}}/>
-							<span style={{fontSize: '13px', fontWeight: 700}}>Iniciar Test</span>
+							{/*<span style={{fontSize: '13px', fontWeight: 700}}>Iniciar Test</span>*/}
 						</button>
 					)}
 				</div>
