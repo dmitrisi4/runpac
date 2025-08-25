@@ -27,34 +27,44 @@ export default defineConfig({
       // The Web App Manifest configuration.
       // This metadata is used when the PWA is installed on a user's device.
       manifest: {
-        name: 'Run Tracker & Territory Capture',
+        name: 'RunTracker - Track Your Runs',
         short_name: 'RunTracker',
         description: 'A PWA to track your runs and capture territory on the map.',
-        theme_color: '#ffffff',
-        background_color: '#ffffff',
+        theme_color: '#4F46E5',
+        background_color: '#4F46E5',
         display: 'standalone',
+        orientation: 'portrait',
         scope: '/',
         start_url: '/',
         icons: [
           {
-            src: 'vite.svg',
-            sizes: 'any',
+            src: 'icon-192x192.svg',
+            sizes: '192x192',
             type: 'image/svg+xml',
-            purpose: 'any' // 'any' is a good default for SVGs that can scale.
+            purpose: 'any maskable'
           },
           {
-            src: 'vite.svg',
-            sizes: '192x192',
+            src: 'icon-512x512.svg',
+            sizes: '512x512',
+            type: 'image/svg+xml',
+            purpose: 'any maskable'
+          },
+          {
+            src: 'apple-touch-icon.svg',
+            sizes: '180x180',
             type: 'image/svg+xml',
             purpose: 'any'
           },
           {
             src: 'vite.svg',
-            sizes: '512x512',
+            sizes: '32x32',
             type: 'image/svg+xml',
             purpose: 'any'
           }
-        ]
+        ],
+        categories: ['health', 'fitness', 'sports'],
+        lang: 'en',
+        dir: 'ltr'
       }
     })
   ],
